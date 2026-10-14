@@ -1,0 +1,79 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Бюджет · Fortis et Fluvius</title><link rel="icon" href="crest.png">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#0b1630;--card:#12224a;--gold:#d4af37;--gold2:#f3d98b;--txt:#e9e4d4;--mut:#9aa3b8;--red:#c97a6d}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#14285a,var(--bg) 60%);color:var(--txt);font-family:Georgia,"Times New Roman",serif;min-height:100vh}
+#login{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:18px;padding:20px}
+#login img{width:170px;filter:drop-shadow(0 0 18px rgba(212,175,55,.35))}
+h1{color:var(--gold);letter-spacing:2px;font-weight:normal;margin:0}
+input,select{background:#0a1430;border:1px solid var(--gold);color:var(--gold2);padding:12px;border-radius:8px;font-size:18px}
+#pin{width:260px;text-align:center}
+button{background:linear-gradient(var(--gold2),var(--gold));border:0;color:#1a1400;padding:12px 30px;border-radius:8px;font-size:16px;cursor:pointer}
+#err{color:var(--red);min-height:1.2em}
+#app{display:none;max-width:1200px;margin:auto;padding:16px}
+header{display:flex;align-items:center;gap:14px;border-bottom:1px solid rgba(212,175,55,.4);padding-bottom:10px;margin-bottom:16px}
+header img{width:56px}header .u{margin-left:auto;color:var(--mut);font-size:13px;text-align:right}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid rgba(212,175,55,.3);border-radius:12px;padding:14px}
+.card .l{color:var(--mut);font-size:13px}.card .v{color:var(--gold2);font-size:24px;margin-top:6px}
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-top:12px}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+h2{color:var(--gold);font-weight:normal;font-size:18px;margin:0 0 10px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left}
+th{color:var(--gold)}td.n{text-align:right;white-space:nowrap}.neg{color:var(--red)}.pos{color:var(--gold2)}
+.tw{overflow-x:auto}.flt{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.flt span{border:1px solid var(--gold);border-radius:16px;padding:4px 12px;cursor:pointer;font-size:13px}.flt span.on{background:var(--gold);color:#1a1400}
+</style></head><body>
+<div id="login"><img src="crest.png" alt="герб"><h1>БЮДЖЕТ</h1>
+<label for="pin" style="color:var(--gold2)">Введите пароль</label>
+<input id="pin" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Пароль">
+<button id="go">Войти</button><div id="err"></div></div>
+<div id="app"><header><img src="crest.png" alt=""><div><h1>Бюджет и ДДС</h1><div style="color:var(--mut);font-size:13px">Fortis et Fluvius · ₽</div></div>
+<div class="u">Обновлено:<br><b id="upd"></b><br><a href="#" id="out" style="color:var(--gold)">выйти</a></div></header>
+<div class="cards" id="cards"></div>
+<div class="grid"><div class="card"><h2>Остаток на конец месяца</h2><canvas id="cLine"></canvas></div>
+<div class="card"><h2>Расходы по типам</h2><canvas id="cPie"></canvas></div></div>
+<div class="card" style="margin-top:12px"><h2>Приход и расход по месяцам</h2><canvas id="cBar"></canvas></div>
+<div class="card" style="margin-top:12px"><h2>Операции</h2><div class="flt" id="flt"></div><div class="tw"><table id="ops"></table></div></div>
+<div class="card" style="margin-top:12px"><h2>Под вопросом <span style="color:var(--mut);font-size:13px">(не учтено в остатке)</span></h2><div class="tw"><table id="q"></table></div></div>
+</div>
+<script>
+const f=n=>(n<0?'−':'')+Math.abs(Math.round(n)).toLocaleString('ru-RU')+' ₽';
+const MN=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+const ml=m=>/^\d{4}-\d\d$/.test(m)?MN[+m.slice(5)-1]+' '+m.slice(2,4):m;
+const b64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function decrypt(pin){const e=await (await fetch('data.enc.json',{cache:'no-store'})).json();
+ const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pin),'PBKDF2',false,['deriveKey']);
+ const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt:b64(e.salt),iterations:e.iter,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['decrypt']);
+ return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(e.iv)},key,b64(e.ct))));}
+const go=async()=>{const p=document.getElementById('pin').value,er=document.getElementById('err');if(!p)return;er.textContent='Проверка…';
+ try{const d=await decrypt(p);sessionStorage.setItem('bp',p);render(d)}catch(x){er.textContent='Неверный пароль';sessionStorage.removeItem('bp')}};
+document.getElementById('go').onclick=go;document.getElementById('pin').onkeydown=e=>e.key=='Enter'&&go();
+document.getElementById('out').onclick=e=>{e.preventDefault();sessionStorage.removeItem('bp');location.reload()};
+if(sessionStorage.getItem('bp')){document.getElementById('pin').value=sessionStorage.getItem('bp');go()}
+function sortKey(o){const m=o.month;if(!/^\d{4}-\d\d$/.test(m))return'9999-99-99';const r=String(o.due).match(/(\d\d)\.(\d\d)/);
+ let d=r?r[1]:/конец|до конца/.test(o.due)?'28':/ежемес/.test(o.due)?'27':'15';return m+'-'+d}
+function render(d){document.getElementById('login').style.display='none';document.getElementById('app').style.display='block';
+ document.getElementById('upd').textContent=d.updated;Chart.defaults.color='#c9c2ab';Chart.defaults.borderColor='rgba(255,255,255,.07)';
+ const ops=d.ops.slice().sort((a,b)=>sortKey(a)<sortKey(b)?-1:sortKey(a)>sortKey(b)?1:0);
+ const inn=ops.filter(o=>o.amount>0).reduce((s,o)=>s+o.amount,0),out=ops.filter(o=>o.amount<0).reduce((s,o)=>s+o.amount,0);
+ const last=d.dds[d.dds.length-1];
+ const now=new Date(new Date().toLocaleString('en-US',{timeZone:'Europe/Moscow'}));const cm=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+ const cur=d.dds.find(x=>x.month==cm)||d.dds[0];
+ const qs=d.questionable.reduce((s,x)=>s+x.amount,0);
+ document.getElementById('cards').innerHTML=[['Остаток на счетах (старт)',d.startBalance],['Прогноз на конец '+ml(cur.month),cur.end],['Свободно в итоге',last.end],['Всего приход',inn],['Всего расход',out],['Под вопросом',qs]]
+  .map(([l,v])=>`<div class="card"><div class="l">${l}</div><div class="v ${v<0?'neg':''}">${f(v)}</div></div>`).join('');
+ const L=d.dds.map(x=>ml(x.month));
+ new Chart(cLine,{type:'line',data:{labels:L,datasets:[{label:'Остаток',data:d.dds.map(x=>x.end),borderColor:'#d4af37',backgroundColor:'rgba(212,175,55,.15)',fill:true,tension:.3}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>f(c.raw)}}},scales:{y:{ticks:{callback:v=>(v/1e6).toFixed(1)+' млн'}}}}});
+ new Chart(cBar,{type:'bar',data:{labels:L,datasets:[{label:'Приход',data:d.dds.map(x=>x.inflow),backgroundColor:'#d4af37',stack:'s'},{label:'Расход',data:d.dds.map(x=>x.outflow),backgroundColor:'#5a6c9c',stack:'s'}]},options:{plugins:{tooltip:{callbacks:{label:c=>c.dataset.label+': '+f(c.raw)}}},scales:{x:{stacked:true},y:{stacked:true,ticks:{callback:v=>(v/1e6).toFixed(1)+' млн'}}}}});
+ const bt={};ops.filter(o=>o.amount<0).forEach(o=>bt[o.type]=(bt[o.type]||0)-o.amount);
+ const pal=['#d4af37','#f3d98b','#a8892c','#7d8db8','#4e5f8f','#c9b98a','#2f3f6e'];
+ new Chart(cPie,{type:'doughnut',data:{labels:Object.keys(bt),datasets:[{data:Object.values(bt),backgroundColor:pal,borderColor:'#12224a'}]},options:{plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>c.label+': '+f(c.raw)}}}}});
+ const types=['Все',...new Set(ops.map(o=>o.type))];let sel='Все';
+ const draw=()=>{document.getElementById('flt').innerHTML=types.map(t=>`<span class="${t==sel?'on':''}">${t}</span>`).join('');
+  document.querySelectorAll('#flt span').forEach(s=>s.onclick=()=>{sel=s.textContent;draw()});
+  document.getElementById('ops').innerHTML='<tr><th>Месяц</th><th>Срок</th><th>Тип</th><th>Статья</th><th style="text-align:right">Сумма</th></tr>'+
+   ops.filter(o=>sel=='Все'||o.type==sel).map(o=>`<tr><td>${ml(o.month)}</td><td>${o.due??''}</td><td>${o.type}</td><td>${o.item}</td><td class="n ${o.amount<0?'neg':'pos'}">${f(o.amount)}</td></tr>`).join('')};draw();
+ document.getElementById('q').innerHTML='<tr><th>Месяц</th><th>Источник</th><th>Статус</th><th style="text-align:right">Сумма</th></tr>'+
+  d.questionable.map(x=>`<tr><td>${ml(x.month)}</td><td>${x.source}</td><td>${x.status}</td><td class="n pos">${f(x.amount)}</td></tr>`).join('');}
+</script></body></html>
