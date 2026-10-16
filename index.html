@@ -86,4 +86,5 @@ function render(d){document.getElementById('login').style.display='none';documen
    ops.filter(o=>sel=='Все'||o.type==sel).map(o=>`<tr><td>${ml(o.month)}</td><td>${o.due??''}</td><td>${o.type}</td><td>${o.item}</td><td class="n ${o.amount<0?'neg':'pos'}">${f(o.amount)}</td></tr>`).join('')};draw();
  document.getElementById('q').innerHTML='<tr><th>Месяц</th><th>Источник</th><th>Статус</th><th style="text-align:right">Сумма</th></tr>'+
   d.questionable.map(x=>`<tr><td>${ml(x.month)}</td><td>${x.source}</td><td>${x.status}</td><td class="n pos">${f(x.amount)}</td></tr>`).join('');}
-</script></body></html>
+</script><script src="updlog.js?v=f7e1c059" defer></script>
+</body></html>
